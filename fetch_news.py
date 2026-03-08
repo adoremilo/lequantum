@@ -448,35 +448,43 @@ footer{{position:relative;z-index:5;border-top:1px solid var(--border);padding:2
 // ── 动画引擎（Q球吃量子球）──────────────────────────────
 const canvas=document.getElementById('anim-canvas');
 const ctx=canvas.getContext('2d');
-function resize(){{canvas.width=window.innerWidth;canvas.height=window.innerHeight;}}
-resize();window.addEventListener('resize',()=>{{resize();}});
-const W=()=>canvas.width,H=()=>canvas.height;
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
+window.addEventListener('resize',()=>{{
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+}});
+
 const lerp=(a,b,t)=>a+(b-a)*t;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const easeOut=t=>1-Math.pow(1-t,4);
 const easeIO=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
 const spring=(c,t,v,k=0.18,d=0.72)=>{{const nv=(v+(t-c)*k)*d;return[c+nv,nv];}};
 const QR=58;
-const QX=()=>W()/2-30,QY=()=>H()/2;
+
 let phase='idle',phaseT=0,frame=0;
 let qBY=0,qBVY=0,qSX=1,qSY=1,qSVX=0,qSVY=0,qGlow=0;
 let mouth=0.2,mouthV=0,mouthTarget=0.2;
-let ballX=QX()+155,ballVX=0,ballTarget=QX()+155,ballScale=1,ballAlpha=1,ballRot=0;
+let ballX=0,ballVX=0,ballTarget=0,ballScale=1,ballAlpha=1,ballRot=0;
 let isHappy=false,sceneFade=1;
 let particles=[],heartPops=[],sparkles=[],starEyes=[],shockwave=null;
 let eAngle=0;
+let ballInited=false;
+
 const STARS=Array.from({{length:160}},(_,i)=>{{
-  return{{x:Math.random()*W(),y:Math.random()*H(),baseR:Math.random()*1.8+0.3,r:0,
-    phase:Math.random()*Math.PI*2,drift:{{x:(Math.random()-.5)*0.1,y:(Math.random()-.5)*0.1}},
+  return{{x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
+    baseR:Math.random()*1.8+0.3,r:0,phase:Math.random()*Math.PI*2,
+    drift:{{x:(Math.random()-.5)*0.1,y:(Math.random()-.5)*0.1}},
     hue:Math.random()>0.6?195:Math.random()>0.5?270:45,
     twinkleSpeed:0.02+Math.random()*0.04,
-    isShooting:i<3,shootX:Math.random()*W(),shootY:Math.random()*H()*.4,
+    isShooting:i<3,shootX:Math.random()*window.innerWidth,
+    shootY:Math.random()*window.innerHeight*.4,
     shootVX:4+Math.random()*5,shootVY:1+Math.random()*2,
     shootAlpha:0,shootTimer:Math.floor(Math.random()*300),tail:[]}};
 }});
 const NEBULAE=Array.from({{length:4}},()=>{{
-  return{{x:Math.random()*W(),y:Math.random()*H(),r:55+Math.random()*70,
-    hue:[195,270,320,45][Math.floor(Math.random()*4)],
+  return{{x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
+    r:55+Math.random()*70,hue:[195,270,320,45][Math.floor(Math.random()*4)],
     phase:Math.random()*Math.PI*2,speed:0.003+Math.random()*0.005}};
 }});
 const ORBITS=[
@@ -485,7 +493,7 @@ const ORBITS=[
   {{rx:QR+35,ry:6,tilt:1.1,speed:0.025,ec:'#00d4ff',er:2}},
 ];
 const BGP=Array.from({{length:45}},()=>{{
-  return{{x:Math.random()*W(),y:Math.random()*H(),
+  return{{x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
     vx:(Math.random()-.5)*.2,vy:(Math.random()-.5)*.2,
     r:Math.random()*1.4+.3,hue:Math.random()>0.5?195:270,ph:Math.random()*Math.PI*2}};
 }});
@@ -493,27 +501,28 @@ let finalQScale=0,finalQAlpha=0,finalMouth=0.2,finalMouthV=0,finalMouthTarget=0.
 
 function spawnBurst(x,y){{
   const cols=['#00d4ff','#7b4fff','#ff6fe8','#ffffff','#ffe566'];
-  for(let i=0;i<26;i++){{const a=(Math.PI*2/26)*i+Math.random()*.4,s=2+Math.random()*5;particles.push({{x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:.016+Math.random()*.014,r:2+Math.random()*3.5,color:cols[Math.floor(Math.random()*cols.length)]}});}}
+  for(let i=0;i<26;i++){{const a=(Math.PI*2/26)*i+Math.random()*.4,s=2+Math.random()*5;
+    particles.push({{x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:.016+Math.random()*.014,r:2+Math.random()*3.5,color:cols[Math.floor(Math.random()*cols.length)]}});}}
 }}
 function spawnHearts(cx,cy){{for(let i=0;i<7;i++)heartPops.push({{x:cx+(Math.random()-.5)*80,y:cy-20,vy:-1.8-Math.random()*2,vx:(Math.random()-.5)*2,life:1,decay:.009,size:8+Math.random()*11,rot:Math.random()*.6-.3}});}}
 function spawnSparkles(cx,cy){{for(let i=0;i<12;i++){{const a=(Math.PI*2/12)*i;sparkles.push({{x:cx,y:cy,tx:cx+Math.cos(a)*(QR+50+Math.random()*18),ty:cy+Math.sin(a)*(QR+50+Math.random()*18),life:1,decay:.022,size:2.5+Math.random()*3}});}}}}
 function spawnStarEyes(){{starEyes=[{{angle:0,scale:0}},{{angle:0,scale:0}}];}}
 function nextPhase(p){{phase=p;phaseT=0;}}
 
-function updatePhase(){{
+function updatePhase(QX,QY){{
   phaseT++;
   if(phase==='idle'){{mouthTarget=0.18+.06*Math.sin(frame*.035);if(phaseT>60)nextPhase('approach');}}
-  else if(phase==='approach'){{const t=easeIO(clamp(phaseT/55,0,1));ballTarget=lerp(QX()+155,QX()+QR+18,t);mouthTarget=lerp(0.18,0.62,t);qSX=lerp(1,1.08,t);qSY=lerp(1,0.94,t);if(phaseT>=55)nextPhase('bite');}}
+  else if(phase==='approach'){{const t=easeIO(clamp(phaseT/55,0,1));ballTarget=lerp(QX+155,QX+QR+18,t);mouthTarget=lerp(0.18,0.62,t);qSX=lerp(1,1.08,t);qSY=lerp(1,0.94,t);if(phaseT>=55)nextPhase('bite');}}
   else if(phase==='bite'){{
     const t=easeOut(clamp(phaseT/12,0,1));mouthTarget=lerp(0.62,0.02,t);
-    if(phaseT===1){{qSX=1.28;qSVX=0;qSY=0.76;qSVY=0;qBVY=-5;spawnBurst(QX()+QR+5,QY());shockwave={{x:QX(),y:QY(),r:QR,life:1}};}}
+    if(phaseT===1){{qSX=1.28;qSVX=0;qSY=0.76;qSVY=0;qBVY=-5;spawnBurst(QX+QR+5,QY);shockwave={{x:QX,y:QY,r:QR,life:1}};}}
     ballScale=lerp(1,0,clamp(phaseT/10,0,1));ballAlpha=lerp(1,0,clamp(phaseT/8,0,1));
     if(phaseT>=14)nextPhase('chew');
   }}
   else if(phase==='chew'){{mouthTarget=0.12+.08*Math.abs(Math.sin(phaseT*.45));qSX=1+.05*Math.sin(phaseT*.5);qSY=1-.04*Math.sin(phaseT*.5);if(phaseT>35)nextPhase('happy');}}
   else if(phase==='happy'){{
     mouthTarget=0.04;isHappy=true;
-    if(phaseT===1){{spawnHearts(QX(),QY()-QR);spawnStarEyes();spawnSparkles(QX(),QY());qBVY=-9;qGlow=1;}}
+    if(phaseT===1){{spawnHearts(QX,QY-QR);spawnStarEyes();spawnSparkles(QX,QY);qBVY=-9;qGlow=1;}}
     if(phaseT>160)nextPhase('fadeout');
   }}
   else if(phase==='fadeout'){{
@@ -527,7 +536,7 @@ function updatePhase(){{
   }}
 }}
 
-function updatePhysics(){{
+function updatePhysics(QX,QY){{
   [mouth,mouthV]=spring(mouth,mouthTarget,mouthV,0.22,0.68);
   [finalMouth,finalMouthV]=spring(finalMouth,finalMouthTarget,finalMouthV,0.12,0.72);
   qBVY+=0.55;qBY+=qBVY;
@@ -543,33 +552,33 @@ function updatePhysics(){{
   sparkles=sparkles.filter(p=>p.life>0);sparkles.forEach(p=>{{p.x=lerp(p.x,p.tx,.07);p.y=lerp(p.y,p.ty,.07);p.life-=p.decay;}});
 }}
 
-function updateStars(){{
+function updateStars(W,H){{
   STARS.forEach(s=>{{
     s.phase+=s.twinkleSpeed;s.x+=s.drift.x;s.y+=s.drift.y;
-    if(s.x<-5)s.x=W()+5;if(s.x>W()+5)s.x=-5;if(s.y<-5)s.y=H()+5;if(s.y>H()+5)s.y=-5;
+    if(s.x<-5)s.x=W+5;if(s.x>W+5)s.x=-5;if(s.y<-5)s.y=H+5;if(s.y>H+5)s.y=-5;
     s.r=s.baseR*(0.5+0.5*Math.abs(Math.sin(s.phase)));
     if(s.isShooting){{
       s.shootTimer--;
-      if(s.shootTimer<=0){{s.shootX=-10;s.shootY=Math.random()*H()*.4;s.shootVX=4+Math.random()*6;s.shootVY=1+Math.random()*2.5;s.shootAlpha=1;s.tail=[];s.shootTimer=180+Math.random()*280;}}
-      if(s.shootAlpha>0){{s.tail.unshift({{x:s.shootX,y:s.shootY}});if(s.tail.length>14)s.tail.pop();s.shootX+=s.shootVX;s.shootY+=s.shootVY;s.shootAlpha-=.028;if(s.shootX>W()+50||s.shootAlpha<=0)s.shootAlpha=0;}}
+      if(s.shootTimer<=0){{s.shootX=-10;s.shootY=Math.random()*H*.4;s.shootVX=4+Math.random()*6;s.shootVY=1+Math.random()*2.5;s.shootAlpha=1;s.tail=[];s.shootTimer=180+Math.random()*280;}}
+      if(s.shootAlpha>0){{s.tail.unshift({{x:s.shootX,y:s.shootY}});if(s.tail.length>14)s.tail.pop();s.shootX+=s.shootVX;s.shootY+=s.shootVY;s.shootAlpha-=.028;if(s.shootX>W+50||s.shootAlpha<=0)s.shootAlpha=0;}}
     }}
   }});
   NEBULAE.forEach(n=>{{n.phase+=n.speed;}});
 }}
 
-function drawBG(sf){{
-  const bg=ctx.createRadialGradient(W()/2,H()/2,0,W()/2,H()/2,W()*.85);
+function drawBG(W,H,sf){{
+  const bg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.85);
   if(sf){{bg.addColorStop(0,'#080820');bg.addColorStop(.5,'#050510');bg.addColorStop(1,'#030308');}}
   else{{bg.addColorStop(0,'#0a0a1a');bg.addColorStop(.5,'#060610');bg.addColorStop(1,'#030308');}}
-  ctx.fillStyle=bg;ctx.fillRect(0,0,W(),H);
-  if(!sf){{BGP.forEach(p=>{{p.x+=p.vx;p.y+=p.vy;p.ph+=.02;if(p.x<0)p.x=W();if(p.x>W)p.x=0;if(p.y<0)p.y=H();if(p.y>H)p.y=0;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`hsla(${{p.hue}},80%,70%,${{.1+.07*Math.sin(p.ph)}})`;ctx.fill();}});}}
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  if(!sf){{BGP.forEach(p=>{{p.x+=p.vx;p.y+=p.vy;p.ph+=.02;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`hsla(${{p.hue}},80%,70%,${{.1+.07*Math.sin(p.ph)}})`;ctx.fill();}});}}
   ctx.save();ctx.globalAlpha=sf?.01:.02;ctx.strokeStyle='#00d4ff';ctx.lineWidth=.5;
-  for(let x=0;x<W();x+=40){{ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}}
-  for(let y=0;y<H();y+=40){{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W(),y);ctx.stroke();}}
+  for(let x=0;x<W;x+=40){{ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}}
+  for(let y=0;y<H;y+=40){{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}}
   ctx.restore();
 }}
 
-function drawStarfield(){{
+function drawStarfield(W,H){{
   NEBULAE.forEach(n=>{{const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*(1+.15*Math.sin(n.phase)));g.addColorStop(0,`hsla(${{n.hue}},70%,60%,0.035)`);g.addColorStop(1,'rgba(0,0,0,0)');ctx.beginPath();ctx.arc(n.x,n.y,n.r*1.5,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();}});
   STARS.forEach(s=>{{
     const alpha=.15+.5*Math.abs(Math.sin(s.phase));
@@ -605,7 +614,7 @@ function drawQ(cx,cy,mA,happy,sc=1,al=1){{
   const fr=ctx.createRadialGradient(-QR*.25,-QR*.3,0,-QR*.1,-QR*.15,QR*.55);
   fr.addColorStop(0,'rgba(255,255,255,0.36)');fr.addColorStop(1,'rgba(255,255,255,0)');
   ctx.beginPath();ctx.arc(0,0,QR,0,Math.PI*2);ctx.fillStyle=fr;ctx.fill();
-  for(let r=1;r<=3;r++){{ctx.beginPath();ctx.arc(0,0,QR*(r/4),0,Math.PI*2);ctx.strokeStyle=`rgba(255,255,255,${{.04+.015*(1-r/4)}})`;ctx.lineWidth=.8;ctx.stroke();}}
+  for(let r=1;r<=3;r++){{ctx.beginPath();ctx.arc(0,0,QR*(r/4),0,Math.PI*2);ctx.strokeStyle=`rgba(255,255,255,${{.04}})`;ctx.lineWidth=.8;ctx.stroke();}}
   ctx.beginPath();ctx.arc(0,0,QR,0,Math.PI*2);
   const rim=ctx.createLinearGradient(-QR,-QR,QR,QR);rim.addColorStop(0,'rgba(255,255,255,0.26)');rim.addColorStop(.5,'rgba(0,212,255,0.14)');rim.addColorStop(1,'rgba(0,0,0,0)');
   ctx.strokeStyle=rim;ctx.lineWidth=2;ctx.stroke();
@@ -630,21 +639,23 @@ function drawQ(cx,cy,mA,happy,sc=1,al=1){{
 
 function drawBall(){{
   if(ballAlpha<=0.01)return;
-  ctx.save();ctx.globalAlpha=ballAlpha;ctx.translate(ballX,ballY);ctx.rotate(ballRot);ctx.scale(ballScale,ballScale);
+  ctx.save();ctx.globalAlpha=ballAlpha;ctx.translate(ballX,ballY_ball);ctx.rotate(ballRot);ctx.scale(ballScale,ballScale);
   const gw=ctx.createRadialGradient(0,0,0,0,0,26);gw.addColorStop(0,'rgba(123,79,255,0.5)');gw.addColorStop(1,'rgba(0,0,0,0)');
   ctx.beginPath();ctx.arc(0,0,26,0,Math.PI*2);ctx.fillStyle=gw;ctx.fill();
   const g=ctx.createRadialGradient(-5,-5,2,0,0,17);g.addColorStop(0,'#e0b8ff');g.addColorStop(.4,'#9b59ff');g.addColorStop(1,'#2a0080');
   ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.fillStyle=g;ctx.shadowColor='#7b4fff';ctx.shadowBlur=18;ctx.fill();ctx.shadowBlur=0;
-  ctx.fillStyle='rgba(255,255,255,0.92)';ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('Q',0,1);
+  ctx.fillStyle='rgba(255,255,255,0.92)';ctx.font='bold 16px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('Q',0,1);
   ctx.restore();
 }}
 
-function drawFX(){{
+function drawFX(QX,QY){{
   particles.forEach(p=>{{ctx.save();ctx.globalAlpha=p.life;ctx.beginPath();ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=7;ctx.fill();ctx.shadowBlur=0;ctx.restore();}});
   heartPops.forEach(p=>{{ctx.save();ctx.globalAlpha=p.life;ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.scale(p.size/18,p.size/18);ctx.beginPath();ctx.moveTo(0,-5);ctx.bezierCurveTo(5,-10,11,-6,11,0);ctx.bezierCurveTo(11,6,0,13,0,17);ctx.bezierCurveTo(0,13,-11,6,-11,0);ctx.bezierCurveTo(-11,-6,-5,-10,0,-5);ctx.fillStyle='#ff6b9d';ctx.shadowColor='#ff6b9d';ctx.shadowBlur=9;ctx.fill();ctx.shadowBlur=0;ctx.restore();}});
   sparkles.forEach(p=>{{ctx.save();ctx.globalAlpha=p.life*.9;ctx.translate(p.x,p.y);ctx.beginPath();for(let i=0;i<4;i++){{const a=(Math.PI/2)*i,ai=a+Math.PI/4;i===0?ctx.moveTo(Math.cos(a)*p.size,Math.sin(a)*p.size):ctx.lineTo(Math.cos(a)*p.size,Math.sin(a)*p.size);ctx.lineTo(Math.cos(ai)*p.size*.3,Math.sin(ai)*p.size*.3);}}ctx.closePath();ctx.fillStyle='#ffe566';ctx.shadowColor='#ffe566';ctx.shadowBlur=7;ctx.fill();ctx.shadowBlur=0;ctx.restore();}});
   if(shockwave){{ctx.beginPath();ctx.arc(shockwave.x,shockwave.y+qBY,shockwave.r,0,Math.PI*2);ctx.strokeStyle=`rgba(0,212,255,${{shockwave.life*.55}})`;ctx.lineWidth=3*shockwave.life;ctx.stroke();}}
 }}
+
+let ballY_ball=0;
 
 function showMainContent(){{
   document.getElementById('intro').classList.add('fade-out');
@@ -654,16 +665,33 @@ function showMainContent(){{
 function skipIntro(){{showMainContent();}}
 
 function loop(){{
-  frame++;updatePhase();updatePhysics();updateStars();
-  ctx.clearRect(0,0,W(),H);
+  frame++;
+  const W=canvas.width,H=canvas.height;
+  const QX=W/2-60,QY=H/2;
+  ballY_ball=QY;
+
+  // 第一帧初始化球的位置
+  if(frame===1){{ballX=QX+155;ballTarget=QX+155;}}
+
+  updatePhase(QX,QY);
+  updatePhysics(QX,QY);
+  updateStars(W,H);
+
+  ctx.clearRect(0,0,W,H);
+
   if(phase==='starfield'){{
-    drawBG(true);drawStarfield();
-    if(finalQAlpha>0.01){{ctx.save();ctx.globalAlpha=finalQAlpha*.7;drawOrbits(W()/2,H()/2);ctx.restore();qSX=1+.01*Math.sin(frame*.03);qSY=1-.008*Math.sin(frame*.03);drawQ(W()/2,H()/2,finalMouth,false,finalQScale,finalQAlpha);}}
+    drawBG(W,H,true);drawStarfield(W,H);
+    if(finalQAlpha>0.01){{
+      ctx.save();ctx.globalAlpha=finalQAlpha*.7;drawOrbits(W/2,H/2);ctx.restore();
+      qSX=1+.01*Math.sin(frame*.03);qSY=1-.008*Math.sin(frame*.03);
+      drawQ(W/2,H/2,finalMouth,false,finalQScale,finalQAlpha);
+    }}
   }} else {{
-    drawBG(false);
-    if(phase==='fadeout'){{ctx.save();ctx.globalAlpha=1-sceneFade;ctx.fillStyle='#030308';ctx.fillRect(0,0,W(),H);ctx.restore();ctx.save();ctx.globalAlpha=sceneFade;}}
-    const cy=QY()+qBY;
-    drawOrbits(QX(),cy);drawFX();drawBall();drawQ(QX(),cy,mouth,isHappy);drawFX();
+    drawBG(W,H,false);
+    if(phase==='fadeout'){{ctx.save();ctx.globalAlpha=1-sceneFade;ctx.fillStyle='#030308';ctx.fillRect(0,0,W,H);ctx.restore();ctx.save();ctx.globalAlpha=sceneFade;}}
+    const cy=QY+qBY;
+    drawOrbits(QX,cy);drawFX(QX,QY);drawBall();
+    drawQ(QX,cy,mouth,isHappy);drawFX(QX,QY);
     if(phase==='fadeout')ctx.restore();
   }}
   requestAnimationFrame(loop);
