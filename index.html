@@ -17,8 +17,9 @@ body::after{content:'';position:fixed;top:-200px;right:-200px;width:600px;height
 #intro{position:fixed;inset:0;z-index:1000;background:#030308;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 1.5s ease;}
 #intro.fade-out{opacity:0;pointer-events:none;}
 #intro.gone{display:none;}
-.brand-wrap{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:5px;}
-.brand-name{font-family:'Noto Serif SC',serif;font-weight:900;font-size:34px;letter-spacing:0.08em;}
+#anim-canvas{position:fixed;inset:0;width:100% !important;height:100% !important;}
+.brand-wrap{position:relative;z-index:2;margin-top:0;display:flex;flex-direction:column;align-items:center;gap:6px;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);}
+.brand-name{font-family:'Noto Serif SC',serif;font-weight:900;font-size:38px;letter-spacing:0.08em;}
 .brand-name .le{color:rgba(255,255,255,0.38);}
 .brand-name .q{background:linear-gradient(135deg,#00d4ff,#7b4fff,#ff6fe8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .brand-sub{font-family:var(--mono);font-size:11px;letter-spacing:0.4em;color:rgba(255,255,255,0.2);text-transform:uppercase;}
@@ -153,7 +154,7 @@ footer{position:relative;z-index:5;border-top:1px solid var(--border);padding:22
 
 <!-- ── 动画入场层 ── -->
 <div id="intro">
-  <canvas id="anim-canvas" width="440" height="300"></canvas>
+  <canvas id="anim-canvas"></canvas>
   <div class="brand-wrap">
     <div class="brand-name"><span class="le">乐</span><span class="q">量子</span></div>
     <div class="brand-sub">每天一口 · lequantum</div>
@@ -319,32 +320,34 @@ footer{position:relative;z-index:5;border-top:1px solid var(--border);padding:22
 // ── 动画引擎（Q球吃量子球）──────────────────────────────
 const canvas=document.getElementById('anim-canvas');
 const ctx=canvas.getContext('2d');
-const W=canvas.width,H=canvas.height;
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+resize();window.addEventListener('resize',()=>{resize();});
+const W=()=>canvas.width,H=()=>canvas.height;
 const lerp=(a,b,t)=>a+(b-a)*t;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const easeOut=t=>1-Math.pow(1-t,4);
 const easeIO=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
 const spring=(c,t,v,k=0.18,d=0.72)=>{const nv=(v+(t-c)*k)*d;return[c+nv,nv];};
-
-const QX=W/2-25,QY=H/2+5,QR=52;
+const QR=58;
+const QX=()=>W()/2-30,QY=()=>H()/2;
 let phase='idle',phaseT=0,frame=0;
 let qBY=0,qBVY=0,qSX=1,qSY=1,qSVX=0,qSVY=0,qGlow=0;
 let mouth=0.2,mouthV=0,mouthTarget=0.2;
-let ballX=QX+155,ballVX=0,ballTarget=QX+155,ballScale=1,ballAlpha=1,ballRot=0;
+let ballX=QX()+155,ballVX=0,ballTarget=QX()+155,ballScale=1,ballAlpha=1,ballRot=0;
 let isHappy=false,sceneFade=1;
 let particles=[],heartPops=[],sparkles=[],starEyes=[],shockwave=null;
 let eAngle=0;
 const STARS=Array.from({length:160},(_,i)=>{
-  return{x:Math.random()*W,y:Math.random()*H,baseR:Math.random()*1.8+0.3,r:0,
+  return{x:Math.random()*W(),y:Math.random()*H(),baseR:Math.random()*1.8+0.3,r:0,
     phase:Math.random()*Math.PI*2,drift:{x:(Math.random()-.5)*0.1,y:(Math.random()-.5)*0.1},
     hue:Math.random()>0.6?195:Math.random()>0.5?270:45,
     twinkleSpeed:0.02+Math.random()*0.04,
-    isShooting:i<3,shootX:Math.random()*W,shootY:Math.random()*H*.4,
+    isShooting:i<3,shootX:Math.random()*W(),shootY:Math.random()*H()*.4,
     shootVX:4+Math.random()*5,shootVY:1+Math.random()*2,
     shootAlpha:0,shootTimer:Math.floor(Math.random()*300),tail:[]};
 });
 const NEBULAE=Array.from({length:4},()=>{
-  return{x:Math.random()*W,y:Math.random()*H,r:55+Math.random()*70,
+  return{x:Math.random()*W(),y:Math.random()*H(),r:55+Math.random()*70,
     hue:[195,270,320,45][Math.floor(Math.random()*4)],
     phase:Math.random()*Math.PI*2,speed:0.003+Math.random()*0.005};
 });
@@ -354,7 +357,7 @@ const ORBITS=[
   {rx:QR+35,ry:6,tilt:1.1,speed:0.025,ec:'#00d4ff',er:2},
 ];
 const BGP=Array.from({length:45},()=>{
-  return{x:Math.random()*W,y:Math.random()*H,
+  return{x:Math.random()*W(),y:Math.random()*H(),
     vx:(Math.random()-.5)*.2,vy:(Math.random()-.5)*.2,
     r:Math.random()*1.4+.3,hue:Math.random()>0.5?195:270,ph:Math.random()*Math.PI*2};
 });
@@ -372,17 +375,17 @@ function nextPhase(p){phase=p;phaseT=0;}
 function updatePhase(){
   phaseT++;
   if(phase==='idle'){mouthTarget=0.18+.06*Math.sin(frame*.035);if(phaseT>60)nextPhase('approach');}
-  else if(phase==='approach'){const t=easeIO(clamp(phaseT/55,0,1));ballTarget=lerp(QX+155,QX+QR+18,t);mouthTarget=lerp(0.18,0.62,t);qSX=lerp(1,1.08,t);qSY=lerp(1,0.94,t);if(phaseT>=55)nextPhase('bite');}
+  else if(phase==='approach'){const t=easeIO(clamp(phaseT/55,0,1));ballTarget=lerp(QX()+155,QX()+QR+18,t);mouthTarget=lerp(0.18,0.62,t);qSX=lerp(1,1.08,t);qSY=lerp(1,0.94,t);if(phaseT>=55)nextPhase('bite');}
   else if(phase==='bite'){
     const t=easeOut(clamp(phaseT/12,0,1));mouthTarget=lerp(0.62,0.02,t);
-    if(phaseT===1){qSX=1.28;qSVX=0;qSY=0.76;qSVY=0;qBVY=-5;spawnBurst(QX+QR+5,QY);shockwave={x:QX,y:QY,r:QR,life:1};}
+    if(phaseT===1){qSX=1.28;qSVX=0;qSY=0.76;qSVY=0;qBVY=-5;spawnBurst(QX()+QR+5,QY());shockwave={x:QX(),y:QY(),r:QR,life:1};}
     ballScale=lerp(1,0,clamp(phaseT/10,0,1));ballAlpha=lerp(1,0,clamp(phaseT/8,0,1));
     if(phaseT>=14)nextPhase('chew');
   }
   else if(phase==='chew'){mouthTarget=0.12+.08*Math.abs(Math.sin(phaseT*.45));qSX=1+.05*Math.sin(phaseT*.5);qSY=1-.04*Math.sin(phaseT*.5);if(phaseT>35)nextPhase('happy');}
   else if(phase==='happy'){
     mouthTarget=0.04;isHappy=true;
-    if(phaseT===1){spawnHearts(QX,QY-QR);spawnStarEyes();spawnSparkles(QX,QY);qBVY=-9;qGlow=1;}
+    if(phaseT===1){spawnHearts(QX(),QY()-QR);spawnStarEyes();spawnSparkles(QX(),QY());qBVY=-9;qGlow=1;}
     if(phaseT>160)nextPhase('fadeout');
   }
   else if(phase==='fadeout'){
@@ -415,26 +418,26 @@ function updatePhysics(){
 function updateStars(){
   STARS.forEach(s=>{
     s.phase+=s.twinkleSpeed;s.x+=s.drift.x;s.y+=s.drift.y;
-    if(s.x<-5)s.x=W+5;if(s.x>W+5)s.x=-5;if(s.y<-5)s.y=H+5;if(s.y>H+5)s.y=-5;
+    if(s.x<-5)s.x=W()+5;if(s.x>W()+5)s.x=-5;if(s.y<-5)s.y=H()+5;if(s.y>H()+5)s.y=-5;
     s.r=s.baseR*(0.5+0.5*Math.abs(Math.sin(s.phase)));
     if(s.isShooting){
       s.shootTimer--;
-      if(s.shootTimer<=0){s.shootX=-10;s.shootY=Math.random()*H*.4;s.shootVX=4+Math.random()*6;s.shootVY=1+Math.random()*2.5;s.shootAlpha=1;s.tail=[];s.shootTimer=180+Math.random()*280;}
-      if(s.shootAlpha>0){s.tail.unshift({x:s.shootX,y:s.shootY});if(s.tail.length>14)s.tail.pop();s.shootX+=s.shootVX;s.shootY+=s.shootVY;s.shootAlpha-=.028;if(s.shootX>W+50||s.shootAlpha<=0)s.shootAlpha=0;}
+      if(s.shootTimer<=0){s.shootX=-10;s.shootY=Math.random()*H()*.4;s.shootVX=4+Math.random()*6;s.shootVY=1+Math.random()*2.5;s.shootAlpha=1;s.tail=[];s.shootTimer=180+Math.random()*280;}
+      if(s.shootAlpha>0){s.tail.unshift({x:s.shootX,y:s.shootY});if(s.tail.length>14)s.tail.pop();s.shootX+=s.shootVX;s.shootY+=s.shootVY;s.shootAlpha-=.028;if(s.shootX>W()+50||s.shootAlpha<=0)s.shootAlpha=0;}
     }
   });
   NEBULAE.forEach(n=>{n.phase+=n.speed;});
 }
 
 function drawBG(sf){
-  const bg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.85);
+  const bg=ctx.createRadialGradient(W()/2,H()/2,0,W()/2,H()/2,W()*.85);
   if(sf){bg.addColorStop(0,'#080820');bg.addColorStop(.5,'#050510');bg.addColorStop(1,'#030308');}
   else{bg.addColorStop(0,'#0a0a1a');bg.addColorStop(.5,'#060610');bg.addColorStop(1,'#030308');}
-  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-  if(!sf){BGP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.ph+=.02;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},80%,70%,${.1+.07*Math.sin(p.ph)})`;ctx.fill();});}
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W(),H);
+  if(!sf){BGP.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.ph+=.02;if(p.x<0)p.x=W();if(p.x>W)p.x=0;if(p.y<0)p.y=H();if(p.y>H)p.y=0;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},80%,70%,${.1+.07*Math.sin(p.ph)})`;ctx.fill();});}
   ctx.save();ctx.globalAlpha=sf?.01:.02;ctx.strokeStyle='#00d4ff';ctx.lineWidth=.5;
-  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  for(let x=0;x<W();x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H();y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W(),y);ctx.stroke();}
   ctx.restore();
 }
 
@@ -524,15 +527,15 @@ function skipIntro(){showMainContent();}
 
 function loop(){
   frame++;updatePhase();updatePhysics();updateStars();
-  ctx.clearRect(0,0,W,H);
+  ctx.clearRect(0,0,W(),H);
   if(phase==='starfield'){
     drawBG(true);drawStarfield();
-    if(finalQAlpha>0.01){ctx.save();ctx.globalAlpha=finalQAlpha*.7;drawOrbits(W/2,H/2);ctx.restore();qSX=1+.01*Math.sin(frame*.03);qSY=1-.008*Math.sin(frame*.03);drawQ(W/2,H/2,finalMouth,false,finalQScale,finalQAlpha);}
+    if(finalQAlpha>0.01){ctx.save();ctx.globalAlpha=finalQAlpha*.7;drawOrbits(W()/2,H()/2);ctx.restore();qSX=1+.01*Math.sin(frame*.03);qSY=1-.008*Math.sin(frame*.03);drawQ(W()/2,H()/2,finalMouth,false,finalQScale,finalQAlpha);}
   } else {
     drawBG(false);
-    if(phase==='fadeout'){ctx.save();ctx.globalAlpha=1-sceneFade;ctx.fillStyle='#030308';ctx.fillRect(0,0,W,H);ctx.restore();ctx.save();ctx.globalAlpha=sceneFade;}
-    const cy=QY+qBY;
-    drawOrbits(QX,cy);drawFX();drawBall();drawQ(QX,cy,mouth,isHappy);drawFX();
+    if(phase==='fadeout'){ctx.save();ctx.globalAlpha=1-sceneFade;ctx.fillStyle='#030308';ctx.fillRect(0,0,W(),H);ctx.restore();ctx.save();ctx.globalAlpha=sceneFade;}
+    const cy=QY()+qBY;
+    drawOrbits(QX(),cy);drawFX();drawBall();drawQ(QX(),cy,mouth,isHappy);drawFX();
     if(phase==='fadeout')ctx.restore();
   }
   requestAnimationFrame(loop);
