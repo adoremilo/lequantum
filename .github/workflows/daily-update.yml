@@ -1,0 +1,31 @@
+name: 每日量子新闻更新
+
+on:
+  schedule:
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 抓取新闻并生成网页
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python fetch_news.py
+
+      - name: 更新网站
+        run: |
+          git config user.name "LeQuantum Bot"
+          git config user.email "bot@lequantum.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "每日更新 $(date '+%Y-%m-%d %H:%M')"
+          git push
