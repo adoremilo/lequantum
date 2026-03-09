@@ -46,13 +46,24 @@ def fetch_rss(source):
 def call_gemini(prompt):
     if not GEMINI_API_KEY:
         return "[]"
+    import time
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
                        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 5000}}).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=60) as r:
-        data = json.loads(r.read())
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.loads(r.read())
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            if '429' in str(e) and attempt < 2:
+                wait = 30 * (attempt + 1)
+                print(f"  ⏳ 限速，等待{wait}秒后重试...")
+                time.sleep(wait)
+            else:
+                raise
+    return "[]" 
 
 
 def process_with_ai(raw_articles):
